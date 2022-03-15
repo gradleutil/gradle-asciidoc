@@ -1,0 +1,66 @@
+// auto-update-header:begin
+:baseUrl: ./
+:toc: left
+// references
+:configuration: <<configuration#,configuration>>
+:docsGradle: link:{baseUrl}../docs/build.gradle[docs/build.gradle, window="gitsrc"]
+:gradle: ./gradlew
+// auto-update-header:end
+
+[[docs]]
+
+= GradleUtil Docs Plugin
+
+toc::[]
+
+{docsGradle}
+
+== Documentation generation
+
+These documents are written in asciidoc format, and use the asciidoctor Gradle plugin to do some
+neat things, like automatically generating task tables and including the output of commands in the docs.
+
+== Task table generation
+
+To automatically generate a table of available tasks:
+
+```
+.{gradle:project:path, e.g. :docs} tasks
+[%header,format=csv,]
+|===
+|===
+```
+
+See the source for this file as an actual example.
+
+When the `docsUpdate` task is run, it will replace the content between the starting `|==` and ending `|==` with a list
+of tasks, including links to the corresponding Gradle file for each task.
+
+== Including output examples
+
+To include output examples in documentation, use `.Output of `command to execute` followed by beginning and ending code blocks (+```+)
+see the source of {configuration} for an example.
+
+== Running arbitrary Groovy code
+
+To run a block of Groovy and capture the output, define a starting and ending block for the content:
+
++////+
+
+groovyScript someoutput={ return "hello there" }
+
++////+
+
+hello there
+
++//+ groovyScript
+
+== Tasks
+
+.:docs tasks
+[%header,format=csv,]
+|===
+Gradle Task,Description
+
+|===
+
