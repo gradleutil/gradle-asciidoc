@@ -1,0 +1,23 @@
+// auto-update-header:begin
+:baseUrl: ./
+:toc: left
+// references
+// auto-update-header:end
+
+
+[[configuration]]
+
+= Configuration
+
+== Extension
+
+
+[[dslexample]]
+.Example build.groovy
+```groovy
+
+docs {  <.>
+
+}
+```
+<.> Start of main configuration block

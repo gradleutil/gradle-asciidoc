@@ -3,7 +3,7 @@
 :toc: left
 // references
 :configuration: <<configuration#,configuration>>
-:docsGradle: link:{baseUrl}../docs/build.gradle[docs/build.gradle, window="gitsrc"]
+:docsGradle: link:{baseUrl}docs/build.gradle[docs/build.gradle, window="gitsrc"]
 :gradle: ./gradlew
 // auto-update-header:end
 

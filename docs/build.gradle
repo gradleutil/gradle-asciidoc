@@ -1,0 +1,11 @@
+plugins{
+    id "net.gradleutil.gradle-asciidoc" version "1.0.0.0"
+    id "org.asciidoctor.jvm.pdf" version "3.3.2"
+}
+
+buildDir = rootProject.buildDir.path + '/docs'
+
+asciidoctorj {
+    logLevel 'INFO'
+    fatalWarnings missingIncludes()
+}
