@@ -10,7 +10,7 @@ repositories {
     gradlePluginPortal()
 }
 
-version = "1.0.0.0"
+version = "1.0.0.1"
 group = 'net.gradleutil'
 
 dependencies {
@@ -60,13 +60,13 @@ gradlePlugin {
 pluginBundle {
     website = 'https://github.com/gradleutil/gradle-asciidoc'
     vcsUrl = 'https://github.com/gradleutil/gradle-asciidoc'
-    description = 'Configure your Gradle builds with HOCON'
-    tags = ['build-tool', 'configuration', 'json', 'json-schema', 'lightbend-conf', 'typesafe-conf']
+    description = 'Asciidoc gradle util plugin for docs that include gradle builds/tasks'
+    tags = ['build-tool', 'documentation', 'asciidoc', 'gradle-util']
 
     plugins {
         gradleUtilAsciidoc {
             id = 'net.gradleutil.gradle-asciidoc'
-            displayName = 'Configure projects with HOCON'
+            displayName = 'Asciidoc gradle util plugin for docs that include gradle builds/tasks'
         }
     }
 }
