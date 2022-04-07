@@ -1,13 +1,16 @@
-
 package net.gradleutil.asciidoc
 
 import org.asciidoctor.gradle.jvm.AsciidoctorJPlugin
 import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.tasks.GradleBuild
+import org.gradle.api.tasks.util.PatternFilterable
+import org.gradle.process.ExecSpec
+import org.gradle.tooling.*
 
-import java.awt.Desktop
-
+import java.awt.*
+import java.util.List
 
 class GradleUtilAsciidocPlugin implements Plugin<Project> {
 
@@ -24,107 +27,109 @@ class GradleUtilAsciidocPlugin implements Plugin<Project> {
         /**
          * replaces placeholder header content with needed header references
          **/
-        def docsUpdateHeaders = project.tasks.register("docsUpdateHeaders"){
+        def docsUpdateHeaders = project.tasks.register("docsUpdateHeaders") {
             description = 'Update the asciidoc headers'
-            doFirst{
+            def headerSourceFile = project.file('docinfo/include-header.adoc')
+            onlyIf { headerSourceFile.exists() }
+            doFirst {
                 logger.lifecycle "Updating any header content if different"
             }
-            doLast{
-                project.fileTree( '../' ){
-                    include '**/*.adoc'
-                    exclude '**/_out/**', '**/out/**'
-                }.each{ adocFile ->
+            doLast {
+                project.fileTree('../') { PatternFilterable p ->
+                    p.include '**/*.adoc'
+                    p.exclude '**/_out/**', '**/out/**'
+                }.each { adocFile ->
                     def adocText = adocFile.text
-                    def headerSplit = project.file( 'docinfo/include-header.adoc' ).text.split( '// references' )
+                    def headerSplit = headerSourceFile.text.split('// references')
                     assert headerSplit.size() == 2
-                    def headerText = "// auto-update-header:begin\n${ headerSplit[ 0 ] }// references\n"
-                    def references = headerSplit[ 1 ]
-                    adocText.findAll( /\/\/ auto-update-header:begin([\s\S]+?)\/\/ auto-update-header:end/ ).each{ docHeader ->
-                        references.eachLine{ line ->
-                            if( line.startsWith( ':' ) ) {
-                                def reference = line.split( ':' )[ 1 ]
-                                if( adocText.contains( "{${ reference }" ) ) {
-                                    logger.trace "${ adocFile } contains reference: `{${ reference }}`"
+                    def headerText = "// auto-update-header:begin\n${headerSplit[0]}// references\n"
+                    def references = headerSplit[1]
+                    adocText.findAll(/\/\/ auto-update-header:begin([\s\S]+?)\/\/ auto-update-header:end/).each { docHeader ->
+                        references.eachLine { line ->
+                            if (line.startsWith(':')) {
+                                def reference = line.split(':')[1]
+                                if (adocText.contains("{${reference}")) {
+                                    logger.trace "${adocFile} contains reference: `{${reference}}`"
                                     headerText += line + '\n'
                                 }
                             }
                         }
                         headerText += '// auto-update-header:end'
-                        if( headerText.trim() == docHeader.trim() ) {
-                            logger.info "Matching header content for ${ adocFile.path }"
+                        if (headerText.trim() == docHeader.trim()) {
+                            logger.info "Matching header content for ${adocFile.path}"
                         } else {
-                            def newText = adocText.replace( docHeader, headerText )
+                            def newText = adocText.replace(docHeader, headerText)
                             adocFile.text = newText
-                            logger.lifecycle "Updated header content of ${ adocFile.path }"
+                            logger.lifecycle "Updated header content of ${adocFile.path}"
                         }
                     }
                 }
             }
         }
-        asciidoctor.shouldRunAfter( docsUpdateHeaders )
+        asciidoctor.shouldRunAfter(docsUpdateHeaders)
 
 
-        def docsUpdate = project.tasks.register("docsUpdate"){
+        def docsUpdate = project.tasks.register("docsUpdate") {
             description = 'Update the generated sections of documentation'
             dependsOn docsUpdateHeaders
-            doFirst{
+            doFirst {
                 logger.lifecycle "Updating any generated content if different"
             }
-            doLast{
-                List<String> projectPaths = project.rootProject.allprojects.collect{ it.project.path }.flatten() as List<String>
-                project.fileTree( '../' ){
-                    include '**/*.adoc'
-                    exclude '**/_out/**', '**/out/**'
-                }.each{ adocFile ->
+            doLast {
+                List<String> projectPaths = project.rootProject.allprojects.collect { it.project.path }.flatten() as List<String>
+                project.fileTree('../') { PatternFilterable p ->
+                    p.include '**/*.adoc'
+                    p.exclude '**/_out/**', '**/out/**'
+                }.each { adocFile ->
                     def fileText = adocFile.text
-                    projectPaths.each{ projectPath ->
-                        if( fileText.contains( ".${ projectPath } tasks" ) ) {
-                            replaceProjectTaskTables( projectPath, adocFile )
+                    projectPaths.each { projectPath ->
+                        if (fileText.contains(".${projectPath} tasks")) {
+                            replaceProjectTaskTables(projectPath, adocFile)
                         }
                     }
-                    project.rootProject.allprojects.tasks.flatten().collect{it?.group }.unique().each{ group ->
-                        if( fileText.contains( ".${ group } tasks" ) ) {
-                            replaceGroupTaskTables( group, adocFile )
+                    projectGroups.each { group ->
+                        if (fileText.contains(".${group} tasks")) {
+                            replaceGroupTaskTables(group, adocFile)
                         }
                     }
-                    if( fileText.matches( /(?sm).*\n.?Output of `.*/ ) ) {
-                        replaceOutputTables( adocFile )
+                    if (fileText.matches(/(?sm).*\n.?Output of `.*/)) {
+                        replaceOutputTables(adocFile)
                     }
-                    if( fileText.matches( /(?sm).*groovyScript.*/ ) ) {
-                        replaceGroovyScript( adocFile )
+                    if (fileText.matches(/(?sm).*groovyScript.*/)) {
+                        replaceGroovyScript(adocFile)
                     }
                 }
             }
-            asciidoctor.shouldRunAfter( it )
+            asciidoctor.shouldRunAfter(it)
         }
 
-        def docs = project.tasks.register("docs"){
+        def docs = project.tasks.register("docs") {
             description = 'Generate the docs'
             dependsOn asciidoctor
-            if( project.findProperty( 'update' ) == 'true' ) {
+            if (project.findProperty('update') == 'true') {
                 dependsOn docsUpdate
             }
-            doLast{
-                def readmeFile = project.file( "${ asciidoctor.outputDir.path }/book.html" )
+            doLast {
+                def readmeFile = project.file("${asciidoctor.outputDir.path}/book.html")
                 logger.lifecycle "Generated docbook file://${readmeFile.path}"
             }
         }
 
-        project.tasks.register("docsView"){
+        project.tasks.register("docsView") {
             description = 'Single-page HTML is exported and opened with the default browser'
             dependsOn docs
-            doLast{
-                def readmeFile = project.file( "${ asciidoctor.outputDir.path }/book.html" )
+            doLast {
+                def readmeFile = project.file("${asciidoctor.outputDir.path}/book.html")
                 logger.lifecycle "Opening browser to file://${readmeFile.path}"
-/*
-        project.exec{
-            commandLine "xdg-open", readmeFile.toURI()
-        }
-*/
-                try{
+                /*
+                        project.exec{
+                            commandLine "xdg-open", readmeFile.toURI()
+                        }
+                */
+                try {
                     Desktop.desktop.open readmeFile
                 } catch (Exception e) {
-                    e.printStackTrace(  )
+                    e.printStackTrace()
                 }
             }
         }
@@ -149,18 +154,27 @@ class GradleUtilAsciidocPlugin implements Plugin<Project> {
         sb.append("\n|===")
     }
 
+    List<String> getProjectGroups() {
+        List<String> groups = project.rootProject.allprojects.tasks.flatten().collect { it?.group }.unique().findAll { it }
+        groups.collect { groupNameRegex(it) } as List<String>
+    }
+
+    static String groupNameRegex(String groupName) {
+        (groupName ?: '').replaceAll(/(\s*\d[.) ]*)?/, '')
+    }
 
     /**
      * replaces placeholder content with list of tasks linked to source build files
      **/
     def asciidocTaskGroupTable(String group) {
-        def projectTasks = project.rootProject.allprojects.tasks.flatten().findAll { it.group == group }
-        if (!projectTasks.size()) {
+        def groupTasks = project.rootProject.getAllTasks(true).values()*.
+                findAll { it.group && groupNameRegex(it.group) == group }.flatten()
+        if (!groupTasks.size()) {
             return ''
         }
         StringBuilder sb = new StringBuilder()
         sb.append(".${group} tasks\n[%header,format=csv,]\n|===\nGradle Task,Description")
-        projectTasks.each { task -> sb.append("\n*${task.name}*, _${task.description?.replaceAll(',', '') ?: ''}_")
+        groupTasks.each { task -> sb.append("\n*${task.name}*, _${task.description?.replaceAll(',', '') ?: ''}_")
         }
         sb.append("\n|===")
     }
@@ -170,20 +184,7 @@ class GradleUtilAsciidocPlugin implements Plugin<Project> {
      * replaces placeholder content with list of projects and tasks linked to source build files
      **/
     def replaceProjectTaskTables(String path, File adocFile) {
-        def docText = adocFile.text
-        def match = (docText =~ /(\.${path} tasks\s+\[%header.+\n\|===\n[\s\S]+?\|===)/)
-        if (match.find()) {
-            def docTable = match.group(1).trim()
-            def taskTable = asciidocTaskTable(path)
-            if (docTable == taskTable) {
-                project.logger.info "Matching asciiDoc task table: ${adocFile.path} - ${path}"
-            } else {
-                if (taskTable) {
-                    adocFile.text = docText.replaceAll(/\.${path} tasks\s+\[%header.+\n\|===\n[\s\S]+?\|===/, taskTable)
-                    project.logger.lifecycle "Updated asciiDoc task table: ${adocFile.path} - ${path}"
-                }
-            }
-        }
+        replaceTaskTables(path, adocFile, { asciidocTaskTable(path) })
     }
 
 
@@ -191,22 +192,29 @@ class GradleUtilAsciidocPlugin implements Plugin<Project> {
      * replaces placeholder content with list of projects and tasks linked to source build files
      **/
     def replaceGroupTaskTables(String group, File adocFile) {
+        replaceTaskTables(group, adocFile, { asciidocTaskGroupTable(group) })
+    }
+
+
+    /**
+     * replaces placeholder content with list of projects and tasks linked to source build files
+     **/
+    def replaceTaskTables(String string, File adocFile, Closure tableTextClosure) {
         def docText = adocFile.text
-        def match = (docText =~ /(\.${group} tasks\s+\[%header.+\n\|===\n[\s\S]+?\|===)/)
+        def match = (docText =~ /(\.${string} tasks\s+\[%header.+\n\|===\n[\s\S]+?\|===)/)
         if (match.find()) {
             def docTable = match.group(1).trim()
-            def taskTable = asciidocTaskGroupTable(group)
+            def taskTable = tableTextClosure() as String
             if (docTable == taskTable) {
-                project.logger.info "Matching asciiDoc task group table: ${adocFile.path} - ${group}"
+                project.logger.info "Matching asciiDoc task table: ${adocFile.path} - ${string}"
             } else {
                 if (taskTable) {
-                    adocFile.text = docText.replaceAll(/\.${group} tasks\s+\[%header.+\n\|===\n[\s\S]+?\|===/, taskTable)
-                    project.logger.lifecycle "Updated asciiDoc task table: ${adocFile.path} - ${group}"
+                    adocFile.text = docText.replaceAll(/\.${string} tasks\s+\[%header.+\n\|===\n[\s\S]+?\|===/, taskTable)
+                    project.logger.lifecycle "Updated asciiDoc task table: ${adocFile.path} - ${string}"
                 }
             }
         }
     }
-
 
     /**
      * replaces placeholder content with output from command
@@ -218,7 +226,8 @@ class GradleUtilAsciidocPlugin implements Plugin<Project> {
             matcher.each {
                 def outputOfLine = it[2] as String
                 def line = it[3] as String
-                def cleanedLine = line.toString().replace('{gradle}', project.rootProject.projectDir.path + "/gradlew -q")
+                def gradlePath = project.gradle.gradleHomeDir.path + '/bin/gradle'
+                def cleanedLine = line.toString().replace('{gradle}', gradlePath + " -q")
                 def docCommandOutput = it[5].toString().trim()
                 def commandOutput = executeLine(cleanedLine).trim()
                 if (commandOutput == docCommandOutput) {
@@ -234,9 +243,9 @@ class GradleUtilAsciidocPlugin implements Plugin<Project> {
     }
 
 
-/**
- * replaces placeholder content with list of projects and tasks linked to source build files
- **/
+    /**
+     * replaces placeholder content with list of projects and tasks linked to source build files
+     **/
     def projectToAsciidoc(Project project, prefix = '==') {
         def sb = new StringBuilder()
         def path = project.buildscript.sourceFile.path.replace(project.rootDir.path, '')
@@ -254,9 +263,9 @@ class GradleUtilAsciidocPlugin implements Plugin<Project> {
         return sb.toString()
     }
 
-/**
- * replaces placeholder content with output from groovy closure
- **/
+    /**
+     * replaces placeholder content with output from groovy closure
+     **/
     def replaceGroovyScript(File adocFile) {
         def docText = adocFile.text
         def matcher = (docText =~ /\/\/\/\/\s*groovyScript ((.+)=([\s\S]+?))\/\/\/\/([\s\S]+?)\/\/([\s]+groovyScript)/)
@@ -283,27 +292,27 @@ class GradleUtilAsciidocPlugin implements Plugin<Project> {
     }
 
 
-
     /**
      * Execute a full command line, versus an array of args
      * @param line
      * @return execution output
      */
-    String executeLine( String line, File fromDir = project.rootProject.file( '.' ) ) {
+    String executeLine(String line, File fromDir = project.rootProject.file('.')) {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream()
-        project.logger.info "Executing: ${ line }"
+        project.logger.info "Executing: ${line}"
         try {
-            project.exec{
-                commandLine '/bin/sh', '-c', line
-                setStandardOutput( outputStream )
-                setErrorOutput( outputStream )
-                workingDir fromDir
+            project.exec { ExecSpec s ->
+                s.commandLine = ['/bin/sh', '-c', line]
+                s.setStandardOutput(outputStream)
+                s.setErrorOutput(outputStream)
+                s.workingDir fromDir
             }
-        } catch( Exception e ) {
+        } catch (Exception e) {
             e.printStackTrace()
-            throw new GradleException( outputStream.toString() )
+            throw new GradleException(outputStream.toString())
         }
         return outputStream.toString()
     }
+
 
 }

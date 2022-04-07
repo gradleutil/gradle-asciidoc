@@ -22,24 +22,55 @@ class GradleAsciidocPluginFunctionalTest extends Specification {
         new File(projectDir, "settings.gradle")
     }
 
+    private getReadmeFile() {
+        new File(projectDir, "README.adoc")
+    }
+
     def "can run task"() {
         given:
         settingsFile << ""
         buildFile << """
 plugins {
-    id('net.gradleutil.asciidoc.greeting')
+    id('net.gradleutil.gradle-asciidoc')
 }
+tasks.register('1someOtherTask'){
+  group = '3. Some Group'
+  description = 'Some Other Description'
+}
+tasks.register('3someThirdTask'){
+  group = '3. Some Group'
+  description = 'Some Third Description'
+}
+tasks.register('2someTask'){
+  group = '4. Some Group'
+  description = 'Some Description'
+  dependsOn '3someThirdTask'
+}
+"""
+        readmeFile << """
+= Configuration
+
+.Some Group tasks
+[%header,format=csv,]
+|===
+Gradle Task,Description
+|===
+
+.Output of `{gradle} -version | head -12`
+```
+```
 """
 
         when:
         def runner = GradleRunner.create()
         runner.forwardOutput()
         runner.withPluginClasspath()
-        runner.withArguments("greeting")
+        runner.withArguments("docsUpdate", '-S')
         runner.withProjectDir(projectDir)
         def result = runner.build()
 
         then:
-        result.output.contains("Hello from plugin 'net.gradleutil.asciidoc.greeting'")
+        result.output.contains("Updated asciiDoc task table")
+        println readmeFile.text
     }
 }

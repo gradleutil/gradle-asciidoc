@@ -4,19 +4,18 @@
 package net.gradleutil.asciidoc
 
 import org.gradle.testfixtures.ProjectBuilder
-import org.gradle.api.Project
 import spock.lang.Specification
 
 /**
- * A simple unit test for the 'net.gradleutil.asciidoc.greeting' plugin.
- */
+ * A simple unit test for the 'net.gradleutil.gradle-asciidoc' plugin.
+ **/
 class GradleUtilAsciidocPluginTest extends Specification {
     def "plugin registers task"() {
         given:
         def project = ProjectBuilder.builder().build()
 
         when:
-        project.plugins.apply("net.gradleutil.asciidoc")
+        project.plugins.apply("net.gradleutil.gradle-asciidoc")
 
         then:
         project.tasks.findByName("docs") != null
