@@ -10,7 +10,7 @@ repositories {
     gradlePluginPortal()
 }
 
-version = "1.0.1.0"
+version = "1.0.2.0"
 group = 'net.gradleutil'
 
 dependencies {
@@ -77,9 +77,9 @@ tasks.withType(AbstractPublishToMaven) { publishTask ->
             def sb = new StringBuilder()
             p.artifacts.each {
                 String artifactPath = p.groupId.replace(".", "/") + "/" + p.artifactId + "/" + p.version + "/"
-                sb.append('\n  ' + repoPath).append(artifactPath)
-                        .append(p.artifactId).append('-' + p.version)
-                        .append(it.classifier ? '-' + it.classifier : '').append('.' + it.extension)
+                sb.append('\n  ').append(repoPath).append(artifactPath)
+                        .append(p.artifactId).append('-').append(p.version)
+                        .append(it.classifier ? '-' + it.classifier : '').append('.').append(it.extension)
             }
             logger.lifecycle("Published ${p.groupId}:${p.artifactId}:${p.version}${sb.toString()}")
         }

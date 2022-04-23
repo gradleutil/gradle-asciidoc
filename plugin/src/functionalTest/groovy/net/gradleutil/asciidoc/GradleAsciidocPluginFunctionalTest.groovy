@@ -23,7 +23,10 @@ class GradleAsciidocPluginFunctionalTest extends Specification {
     }
 
     private getReadmeFile() {
-        new File(projectDir, "README.adoc")
+        new File(projectDir.path + '/src/docs/asciidoc/').with{
+            mkdirs()
+            return new File(it, "README.adoc")
+        }
     }
 
     def "can run task"() {
@@ -72,5 +75,36 @@ Gradle Task,Description
         then:
         result.output.contains("Updated asciiDoc task table")
         println readmeFile.text
+    }
+
+    def "can generate html"() {
+        given:
+        settingsFile << ""
+        buildFile << """
+plugins {
+    id('net.gradleutil.gradle-asciidoc')
+}
+"""
+        readmeFile << """
+= Configuration
+
+Lots of info goes here
+
+"""
+
+        when:
+        def runner = GradleRunner.create()
+        runner.forwardOutput()
+        runner.withPluginClasspath()
+        runner.withArguments("docs", '-S')
+        runner.withProjectDir(projectDir)
+        def result = runner.build()
+
+        then:
+        result.output.contains("Generated docbook")
+        new File(projectDir,"build/docinfo/").with {
+            it.listFiles().each {System.err.println it}
+            exists()
+        }
     }
 }

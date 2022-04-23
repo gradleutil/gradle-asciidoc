@@ -1,6 +1,7 @@
 package net.gradleutil.asciidoc
 
 import org.asciidoctor.gradle.jvm.AsciidoctorJPlugin
+import org.asciidoctor.gradle.jvm.AsciidoctorTask
 import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -22,7 +23,23 @@ class GradleUtilAsciidocPlugin implements Plugin<Project> {
 
         project.pluginManager.apply(AsciidoctorJPlugin)
 
-        def asciidoctor = project.tasks.getByName('asciidoctor')
+        AsciidoctorTask asciidoctor = project.tasks.getByName('asciidoctor') as AsciidoctorTask
+
+        if(!project.repositories.size()){
+            project.repositories.mavenCentral()
+        }
+
+        asciidoctor.doFirst {
+            if(!asciidoctor.attributes.get('docinfodir')){
+                def docInfoDir = project.file(project.buildDir.path + '/docinfo')
+                docInfoDir.mkdirs()
+                asciidoctor.attributes docinfodir: docInfoDir.path
+                ['/docinfo/docinfo.html','/docinfo/docinfo-footer.html'].each{
+                    String resource = GradleUtilAsciidocPlugin.class.getResourceAsStream( it ).text;
+                    File output = new File( docInfoDir, it.split( '/' ).last() ); output << resource
+                }
+            }
+        }
 
         /**
          * replaces placeholder header content with needed header references
