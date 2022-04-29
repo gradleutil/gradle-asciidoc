@@ -10,12 +10,15 @@ repositories {
     gradlePluginPortal()
 }
 
-version = "1.0.2.0"
+version = "1.1.0.0"
 group = 'net.gradleutil'
 
+final adocVer = '3.3.2'
+
 dependencies {
-    api 'org.asciidoctor:asciidoctor-gradle-jvm:3.3.2'
-    api 'org.asciidoctor:asciidoctor-gradle-base:3.3.2'
+    api 'org.asciidoctor:asciidoctor-gradle-base:' + adocVer
+    api 'org.asciidoctor:asciidoctor-gradle-jvm:' + adocVer
+    api 'org.asciidoctor:asciidoctor-gradle-jvm-pdf:' + adocVer
     // Use the awesome Spock testing and specification framework
     testImplementation 'org.spockframework:spock-core:2.0-groovy-3.0'
 }

@@ -1,15 +1,22 @@
 package net.gradleutil.asciidoc
 
+import groovy.io.FileType
+import org.asciidoctor.gradle.jvm.AsciidoctorJExtension
 import org.asciidoctor.gradle.jvm.AsciidoctorJPlugin
 import org.asciidoctor.gradle.jvm.AsciidoctorTask
+import org.asciidoctor.gradle.jvm.pdf.AsciidoctorJPdfPlugin
+import org.asciidoctor.gradle.jvm.pdf.AsciidoctorPdfTask
 import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.api.tasks.GradleBuild
+import org.gradle.api.Task
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.provider.Property
+import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.util.PatternFilterable
 import org.gradle.process.ExecSpec
-import org.gradle.tooling.*
 
+import javax.inject.Inject
 import java.awt.*
 import java.util.List
 
@@ -17,34 +24,69 @@ class GradleUtilAsciidocPlugin implements Plugin<Project> {
 
     Project project
 
+    DocsExtension extension
+    TaskProvider<Task> docsUpdateHeaders
+    TaskProvider<Task> docsUpdate
+    TaskProvider<AsciidoctorTask> docs
+    TaskProvider<Task> docsView
+    TaskProvider<AsciidoctorPdfTask> docsPdf
+    TaskProvider<Task> docsViewPdf
+
+    static abstract class DocsExtension {
+
+        abstract DirectoryProperty getSourceDir();
+
+        abstract DirectoryProperty getOutputDir();
+
+        abstract DirectoryProperty getBaseDir();
+
+        abstract Property<Boolean> getAddVersionSuffix();
+
+        abstract Property<String> getVersion();
+
+        @Inject
+        DocsExtension(Project project) {
+            project.pluginManager.apply(AsciidoctorJPlugin)
+            project.pluginManager.apply(AsciidoctorJPdfPlugin)
+            def asciidoctor = project.tasks.getByName('asciidoctor') as AsciidoctorTask
+            sourceDir.convention(asciidoctor.sourceDirProperty)
+            baseDir.convention(sourceDir)
+            outputDir.convention(asciidoctor.outputDirProperty)
+            addVersionSuffix.convention(false)
+        }
+    }
+
     void apply(Project project) {
 
         this.project = project
 
-        project.pluginManager.apply(AsciidoctorJPlugin)
-
-        AsciidoctorTask asciidoctor = project.tasks.getByName('asciidoctor') as AsciidoctorTask
-
-        if(!project.repositories.size()){
+        if (!project.repositories.size()) {
             project.repositories.mavenCentral()
         }
 
-        asciidoctor.doFirst {
-            if(!asciidoctor.attributes.get('docinfodir')){
-                def docInfoDir = project.file(project.buildDir.path + '/docinfo')
-                docInfoDir.mkdirs()
-                asciidoctor.attributes docinfodir: docInfoDir.path
-                ['/docinfo/docinfo.html','/docinfo/docinfo-footer.html'].each{
-                    String resource = GradleUtilAsciidocPlugin.class.getResourceAsStream( it ).text;
-                    File output = new File( docInfoDir, it.split( '/' ).last() ); output << resource
-                }
-            }
+        extension = project.getObjects().newInstance(DocsExtension)
+        project.extensions.add('docs', extension)
+        project.afterEvaluate {
+            extension.version.convention("${-> project.version}")
         }
+
+        def asciidoctorJ = project.extensions.getByName(AsciidoctorJExtension.NAME) as AsciidoctorJExtension
+
+        asciidoctorJ.with {
+            logLevel = 'INFO'
+            fatalWarnings missingIncludes()
+        }
+
+        addDocTasks()
+
+    }
+
+    def addDocTasks() {
 
         /**
          * replaces placeholder header content with needed header references
          **/
-        def docsUpdateHeaders = project.tasks.register("docsUpdateHeaders") {
+        docsUpdateHeaders = project.tasks.register("docsUpdateHeaders") {
             description = 'Update the asciidoc headers'
             def headerSourceFile = project.file('docinfo/include-header.adoc')
             onlyIf { headerSourceFile.exists() }
@@ -83,10 +125,8 @@ class GradleUtilAsciidocPlugin implements Plugin<Project> {
                 }
             }
         }
-        asciidoctor.shouldRunAfter(docsUpdateHeaders)
 
-
-        def docsUpdate = project.tasks.register("docsUpdate") {
+        docsUpdate = project.tasks.register("docsUpdate") {
             description = 'Update the generated sections of documentation'
             dependsOn docsUpdateHeaders
             doFirst {
@@ -117,41 +157,107 @@ class GradleUtilAsciidocPlugin implements Plugin<Project> {
                     }
                 }
             }
-            asciidoctor.shouldRunAfter(it)
         }
 
-        def docs = project.tasks.register("docs") {
-            description = 'Generate the docs'
-            dependsOn asciidoctor
+        docs = project.tasks.register('docs', AsciidoctorTask) {
             if (project.findProperty('update') == 'true') {
                 dependsOn docsUpdate
             }
-            doLast {
-                def readmeFile = project.file("${asciidoctor.outputDir.path}/book.html")
-                logger.lifecycle "Generated docbook file://${readmeFile.path}"
+            logDocuments = true
+            sourceDir = extension.sourceDir
+            outputDir = extension.outputDir
+            baseDir = extension.baseDir
+            def isBook = project.file(sourceDir.path + '/book.adoc').exists() || project.file(baseDir.path + '/book.adoc').exists()
+            if (isBook) {
+                logger.lifecycle('only including docbook file book.adoc')
+                sources { include '**/book.adoc' }
             }
+            doFirst {
+                if (!attributes.get('docinfo1')) {
+                    attributes docinfo1: ''
+                }
+                if (!attributes.get('docinfodir')) {
+                    def docInfoDir = project.file(project.buildDir.path + '/docinfo')
+                    docInfoDir.mkdirs()
+                    attributes docinfodir: docInfoDir.path
+                    ['/docinfo/docinfo.html', '/docinfo/docinfo-footer.html'].each {
+                        String resource = GradleUtilAsciidocPlugin.class.getResourceAsStream(it).text
+                        File output = new File(docInfoDir, it.split('/').last()); output << resource
+                    }
+                }
+            }
+            doLast {
+                if (extension.addVersionSuffix.get()) {
+                    logger.lifecycle("adding version to file name ${project.version}")
+                    project.file("${outputDir}/book.html").renameTo(project.file("${outputDir}/book-${-> extension.version.get()}.html"))
+                }
+                extension.outputDir.get().asFile.traverse(type: FileType.FILES) { file ->
+                    if (file.name.endsWith('html') && !file.parentFile.name.endsWith('docinfo')) {
+                        logger.lifecycle "Generated docbook file://${file.path}"
+                    }
+                }
+            }
+            shouldRunAfter(docsUpdate)
         }
 
-        project.tasks.register("docsView") {
+        docsView = project.tasks.register("docsView") {
             description = 'Single-page HTML is exported and opened with the default browser'
             dependsOn docs
             doLast {
-                def readmeFile = project.file("${asciidoctor.outputDir.path}/book.html")
-                logger.lifecycle "Opening browser to file://${readmeFile.path}"
+                def file = extension.outputDir.get().asFile.listFiles().find { it.path.endsWith('html') }
+                logger.lifecycle "Opening browser to file://${file.path}"
                 /*
-                        project.exec{
-                            commandLine "xdg-open", readmeFile.toURI()
-                        }
-                */
+                    project.exec{
+                        commandLine "xdg-open", file.toURI()
+                    }
+            */
                 try {
-                    Desktop.desktop.open readmeFile
+                    Desktop.desktop.open file
                 } catch (Exception e) {
                     e.printStackTrace()
                 }
             }
         }
 
+        docsPdf = project.tasks.register('docsPdf', AsciidoctorPdfTask) {
+            sourceDir = extension.sourceDir
+            outputDir = extension.outputDir
+            baseDir = extension.baseDir
+            def isBook = project.file(sourceDir.path + '/book.adoc').exists() || project.file(baseDir.path + '/book.adoc').exists()
+            if (isBook) {
+                logger.lifecycle('only including docbook file book.adoc')
+                sources { include '**/book.adoc' }
+            }
+            doLast {
+                if (extension.addVersionSuffix.get()) {
+                    logger.lifecycle("adding version to file name ${-> extension.version.get()}")
+                    project.file("${outputDir}/book.pdf").renameTo(project.file("${outputDir}/book-" + extension.version.get() + ".pdf"))
+                }
+                extension.outputDir.get().asFile.traverse(type: FileType.FILES) { file ->
+                    if (file.name.endsWith('pdf')) {
+                        logger.lifecycle "Generated docbook file://${file.path}"
+                    }
+                }
+            }
+        }
+
+        docsViewPdf = project.tasks.register("docsViewPdf") {
+            description = 'PDF is exported and opened with the default app'
+            dependsOn docs
+            doLast {
+                def file = extension.outputDir.get().asFile.listFiles().find { it.path.endsWith('pdf') }
+                logger.lifecycle "Opening browser to file://${file.path}"
+                try {
+                    Desktop.desktop.open file
+                } catch (Exception e) {
+                    e.printStackTrace()
+                }
+            }
+        }
+
+
     }
+
 
     /**
      * replaces placeholder content with list of tasks linked to source build files
