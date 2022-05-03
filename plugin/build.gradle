@@ -10,7 +10,7 @@ repositories {
     gradlePluginPortal()
 }
 
-version = "1.1.0.0"
+version = "1.1.0.1"
 group = 'net.gradleutil'
 
 final adocVer = '3.3.2'

@@ -169,10 +169,12 @@ class GradleUtilAsciidocPlugin implements Plugin<Project> {
             baseDir = extension.baseDir
             def isBook = project.file(sourceDir.path + '/book.adoc').exists() || project.file(baseDir.path + '/book.adoc').exists()
             if (isBook) {
-                logger.lifecycle('only including docbook file book.adoc')
                 sources { include '**/book.adoc' }
             }
             doFirst {
+                if (isBook) {
+                    logger.lifecycle('only including docbook file book.adoc')
+                }
                 if (!attributes.get('docinfo1')) {
                     attributes docinfo1: ''
                 }
@@ -225,10 +227,12 @@ class GradleUtilAsciidocPlugin implements Plugin<Project> {
             baseDir = extension.baseDir
             def isBook = project.file(sourceDir.path + '/book.adoc').exists() || project.file(baseDir.path + '/book.adoc').exists()
             if (isBook) {
-                logger.lifecycle('only including docbook file book.adoc')
                 sources { include '**/book.adoc' }
             }
             doLast {
+                if (isBook) {
+                    logger.lifecycle('only including docbook file book.adoc')
+                }
                 if (extension.addVersionSuffix.get()) {
                     logger.lifecycle("adding version to file name ${-> extension.version.get()}")
                     project.file("${outputDir}/book.pdf").renameTo(project.file("${outputDir}/book-" + extension.version.get() + ".pdf"))
