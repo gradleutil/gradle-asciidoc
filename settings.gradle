@@ -1,3 +1,9 @@
+pluginManagement {
+    repositories {
+        mavenLocal()
+        gradlePluginPortal()
+    }
+}
 rootProject.name = 'gradle-asciidoc-root'
 include('plugin')
 project(":plugin").name = "gradle-asciidoc"

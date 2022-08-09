@@ -2,6 +2,7 @@ plugins {
     id 'java-gradle-plugin'
     id 'groovy'
     id 'maven-publish'
+    id 'net.gradleutil.gradle-java' version '1.0.4'
     id "com.gradle.plugin-publish" version "0.11.0"
 }
 
@@ -10,10 +11,14 @@ repositories {
     gradlePluginPortal()
 }
 
-version = "1.1.0.1"
+version = "1.1.0.2"
 group = 'net.gradleutil'
 
 final adocVer = '3.3.2'
+
+gradleJava {
+    release.set 'jdk-11.0.15+10'
+}
 
 dependencies {
     api 'org.asciidoctor:asciidoctor-gradle-base:' + adocVer

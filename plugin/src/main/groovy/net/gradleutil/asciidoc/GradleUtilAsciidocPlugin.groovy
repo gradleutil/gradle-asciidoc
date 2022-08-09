@@ -173,7 +173,7 @@ class GradleUtilAsciidocPlugin implements Plugin<Project> {
             }
             doFirst {
                 if (isBook) {
-                    logger.lifecycle('only including docbook file book.adoc')
+                    logger.info('only including docbook file book.adoc')
                 }
                 if (!attributes.get('docinfo1')) {
                     attributes docinfo1: ''
@@ -231,7 +231,7 @@ class GradleUtilAsciidocPlugin implements Plugin<Project> {
             }
             doLast {
                 if (isBook) {
-                    logger.lifecycle('only including docbook file book.adoc')
+                    logger.info('only including docbook file book.adoc')
                 }
                 if (extension.addVersionSuffix.get()) {
                     logger.lifecycle("adding version to file name ${-> extension.version.get()}")

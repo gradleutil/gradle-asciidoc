@@ -82,6 +82,12 @@ done
 
 APP_HOME=$( cd "${APP_HOME:-./}" && pwd -P ) || exit
 
+export JVM_MAJOR_VERSION=11
+export JVM_DIR="${HOME}/wrapper/java/11/jdk/jdk-11.0.15+10"
+export JVM_RELEASE=jdk-11.0.15%2B10
+export GRADLE_USER_HOME="${HOME}/.gradle"
+. "${APP_HOME}/gradle/gradle-java.sh"
+
 APP_NAME="Gradle"
 APP_BASE_NAME=${0##*/}
 
